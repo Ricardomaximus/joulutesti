@@ -1,0 +1,482 @@
+
+<!doctype html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skanskan digitaalinen joulukalenteri</title>
+
+  <!-- Inline CSS (tyylit) -->
+  <style>
+    :root {
+      --skanska-green: #007a53;
+      --skanska-dark: #003c2b;
+      --white: #ffffff;
+      --bg: #f6f7f8;
+      --text: #222;
+      --muted: #666;
+      --accent: #e63946;
+      --gold: #d4af37;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+    .header { display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: center; padding: 1rem 1.5rem; background: var(--skanska-green); color: var(--white); }
+    .brand { display: flex; align-items: center; gap: .75rem; }
+    .brand .logo { font-size: 1.6rem; }
+    .header h1 { margin: 0; font-size: 1.4rem; }
+    .user { display: flex; gap: .5rem; align-items: center; }
+    .user input { padding: .5rem .75rem; border-radius: .4rem; border: none; }
+
+    main { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: .75rem 1rem; background: #fff; border-radius: .75rem; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+    .date-info { color: var(--muted); }
+    .controls { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { display: none; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; transition: .2s; border-radius: 24px; }
+    .slider:before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px; background: white; transition: .2s; border-radius: 50%; }
+    .switch input:checked + .slider { background: var(--skanska-green); }
+    .switch input:checked + .slider:before { transform: translateX(20px); }
+    .switch-label { font-size: .9rem; color: var(--muted); }
+
+    .calendar-grid { margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .75rem; }
+    .door { position: relative; padding: 1rem; border-radius: .75rem; background: #fff; border: 2px solid var(--skanska-green);
+            display: flex; align-items: center; justify-content: center; flex-direction: column; min-height: 110px; cursor: pointer;
+            transition: transform .1s ease, box-shadow .1s ease; }
+    .door:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,.08); }
+    .door.locked { border-color: #bbb; color: #999; background: #f0f0f0; cursor: not-allowed; }
+    .door .day { font-size: 1.6rem; font-weight: 700; }
+    .door .status { font-size: .85rem; color: var(--muted); margin-top: .25rem; text-align: center; }
+    .door.completed { border-color: var(--gold); background: #fff8e1; }
+    .door .emoji { font-size: 1.4rem; margin-bottom: .5rem; }
+
+    .scoreboard { margin-top: 1rem; }
+    .card { background: #fff; border-radius: .75rem; padding: 1rem; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+    .small { color: var(--muted); font-size: .9rem; }
+
+    .btn { padding: .5rem .9rem; border: none; border-radius: .6rem; cursor: pointer; background: var(--skanska-green); color: var(--white); font-weight: 600; }
+    .btn:hover { filter: brightness(1.05); }
+    .btn.secondary { background: var(--skanska-dark); }
+    .btn.danger { background: var(--accent); }
+    .btn.primary { background: var(--gold); color: #333; }
+
+    .icon-btn { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; color: #222; }
+    .icon-btn:hover { color: var(--accent); }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 10; }
+    .modal { border: none; border-radius: 1rem; padding: 0; width: min(640px, 92vw); box-shadow: 0 10px 24px rgba(0,0,0,.2); z-index: 11; }
+    .modal-form { display: flex; flex-direction: column; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: .8rem 1rem; background: var(--skanska-green); color: #fff; border-radius: 1rem 1rem 0 0; }
+    .modal-body { padding: 1rem; display: grid; gap: .75rem; }
+    .modal-footer { display: flex; gap: .5rem; justify-content: flex-end; padding: .8rem 1rem; background: #fafafa; border-radius: 0 0 1rem 1rem; }
+
+    .quiz-options { display: grid; gap: .5rem; }
+    .quiz-options label { display: flex; gap: .5rem; align-items: center; }
+    .input-text { padding: .6rem .75rem; border: 1px solid #ccc; border-radius: .5rem; width: 100%; }
+
+    .footer { text-align: center; color: var(--muted); padding: 1rem; }
+
+    /* --- Piilotusluokka --- */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <span class="logo">🎄</span>
+      <h1>Skanskan digitaalinen joulukalenteri</h1>
+    </div>
+    <div class="user">
+      <label for="username">Nimesi:</label>
+      <input id="username" type="text" placeholder="Kirjoita nimesi" />
+      <button id="saveNameBtn" class="btn">Tallenna</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="toolbar">
+      <div class="date-info">
+        <span id="todayText"></span>
+      </div>
+
+      <!-- Kehittäjätilan kontrollit: piilotetaan oletuksena -->
+      <div class="controls hidden" id="devControls">
+        <label class="switch">
+          <input type="checkbox" id="devModeToggle" />
+          <span class="slider"></span>
+        </label>
+        <span class="switch-label">Kehittäjätila (avaa kaikki luukut)</span>
+
+        <button id="exportCsvBtn" class="btn secondary">Vie pisteet CSV</button>
+        <button id="resetBtn" class="btn danger">Nollaa edistyminen</button>
+      </div>
+    </section>
+
+    <section id="calendar" class="calendar-grid" aria-label="Joulukalenterin luukut"></section>
+
+    <section class="scoreboard">
+      <div class="card">
+        <h2>Pisteet</h2>
+        <p><strong>Nimi:</strong> <span id="displayName">—</span></p>
+        <p><strong>Kokonaispisteet:</strong> <span id="totalPoints">0</span></p>
+        <p class="small">Pisteet tallentuvat vain tälle laitteelle (localStorage).</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Haastemodaali -->
+  <div id="modalBackdrop" class="modal-backdrop" hidden></div>
+  <dialog id="challengeModal" class="modal" aria-label="Päivän haaste">
+    <form method="dialog" class="modal-form">
+      <header class="modal-header">
+        <h3 id="modalTitle">Päivän haaste</h3>
+        <button type="button" class="icon-btn" id="closeModalBtn" aria-label="Sulje">✖</button>
+      </header>
+
+      <div id="modalBody" class="modal-body"></div>
+
+      <footer class="modal-footer">
+        <button id="markDoneBtn" type="button" class="btn primary">Merkitse suoritetuksi</button>
+        <button id="cancelBtn" type="button" class="btn">Sulje</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <footer class="footer">
+    <p>© 2025 Skanska – sisäinen joulumieli 🎅</p>
+  </footer>
+
+  <!-- Inline JS (toiminnallisuus) -->
+  <script>
+    // ------- Haasteet -------
+    const CHALLENGES = [
+      { day: 1,  emoji: "📸", type: "task",   points: 5,  title: "Jouluselfie toimistolla", desc: "Ota jouluselfie toimistolla (koriste, pipari tai tonttulakki) ja jaa tiimille." },
+      { day: 2,  emoji: "💬", type: "task",   points: 5,  title: "Kiitosviesti kollegalle", desc: "Kirjoita Teamsissa kiitosviesti kollegalle valitsemastasi syystä." },
+      { day: 3,  emoji: "❄️", type: "quiz",   points: 10, title: "Joulutietovisa I",        quiz: { question: "Mikä suomalainen juoma on tyypillinen jouluna?", options: ["Kahvi", "Glögi", "Mehu"], correctIndex: 1 }, desc: "Valitse oikea vastaus." },
+      { day: 4,  emoji: "✂️", type: "task",   points: 5,  title: "Paperitähti",           desc: "Askarteluhaaste: tee paperinen joulutähti tai origami ja jaa kuva." },
+      { day: 5,  emoji: "🔤", type: "anagram",points: 8,  title: "Joulusanapulma",        anagram: { scrambled: "TUTNOT", solution: "TONTUT" }, desc: "Ratkaise anagrammi (kirjoita sana oikein)." },
+      { day: 6,  emoji: "😊", type: "task",   points: 5,  title: "Hyvän mielen teko",     desc: "Auta kollegaa pienessä asiassa tai jaa kannustava viesti." },
+      { day: 7,  emoji: "🏋️", type: "task",   points: 5,  title: "Taukojumppa",           desc: "Tee 10 kyykkyä tai 5 min venyttelytauko työpäivän aikana." },
+      { day: 8,  emoji: "🎶", type: "quiz",   points: 10, title: "Joululaulutietovisa",   quiz: { question: "Millä kielellä 'Stille Nacht' alun perin kirjoitettiin?", options: ["Suomi", "Saksa", "Ruotsi"], correctIndex: 1 }, desc: "Valitse oikea vastaus." },
+      { day: 9,  emoji: "🎀", type: "task",   points: 5,  title: "Koristekilpailu",       desc: "Koristele oma työpiste jouluiseksi ja jaa kuva tiimin kanavassa." },
+      { day: 10, emoji: "🍪", type: "poll",   points: 2,  title: "Piparin muoto",         poll: { question: "Mikä on suosikkimuotosi pipareissa?", options: ["Tähti", "Sydän", "Kuusi", "Poron pää"] }, desc: "Ei oikeaa tai väärää – valitse suosikkisi." },
+      { day: 11, emoji: "🏗️", type: "quiz",  points: 10, title: "Turvallisuusvisa",      quiz: { question: "Mitä 'PPE' tarkoittaa työmailla?", options: ["Työaikataulu", "Henkilökohtaiset suojavarusteet", "Projektin budjetti"], correctIndex: 1 }, desc: "Valitse oikea vastaus." },
+      { day: 12, emoji: "🧘", type: "task",   points: 5,  title: "Venyttelytauko",        desc: "Pidä 5 minuutin tauko: niskan, hartioiden ja selän venytykset." },
+      { day: 13, emoji: "🧹", type: "task",   points: 5,  title: "Työpisteen siivous",    desc: "Siivoa työpiste 5 minuutissa: paperit, kaapelit ja pölyt ojennukseen." },
+      { day: 14, emoji: "♻️", type: "task",   points: 5,  title: "Kierrätysbongaus",     desc: "Etsi toimiston kierrätyspiste ja vie sinne paperit tai pahvit." },
+      { day: 15, emoji: "🏛️", type: "task",   points: 5,  title: "Arkkitehtuuribongaus", desc: "Bongaa toimistolta arkkitehtoninen yksityiskohta ja jaa kuva." },
+      { day: 16, emoji: "☕",  type: "task",   points: 5,  title: "Yhteinen kahvitauko",  desc: "Sovi lyhyt kahvitauko kollegan kanssa tänään." },
+      { day: 17, emoji: "🧩", type: "riddle", points: 8,  title: "Aamun arvoitus",       riddle: { question: "Mikä kulkee talon ympäri, mutta ei liiku?", answer: "SEINÄ" }, desc: "Kirjoita vastaukseksi yksi sana." },
+      { day: 18, emoji: "🙏", type: "task",   points: 5,  title: "Kiitollisuus",         desc: "Kirjoita Teamsiin yksi asia, josta olet kiitollinen tänä vuonna." },
+      { day: 19, emoji: "✍️", type: "task",   points: 5,  title: "Piirrä kuusi",         desc: "Piirrä valkotaululle pieni joulukuusi tai jätä tervehdyksesi." },
+      { day: 20, emoji: "😀", type: "task",   points: 5,  title: "Emojihaaste",          desc: "Lähetä Teamsissa jouluteemainen emoji-viesti tiimille." },
+      { day: 21, emoji: "🚶", type: "task",   points: 5,  title: "Pieni kävely",         desc: "Kävele käytävää edestakaisin 2–5 minuuttia ja nollaa pää." },
+      { day: 22, emoji: "⭐",  type: "task",   points: 5,  title: "Vuoden highlight",     desc: "Jaa tiimille yksi hetki tai oppi, josta olet ylpeä tänä vuonna." },
+      { day: 23, emoji: "🗣️", type: "task",   points: 5,  title: "Tervehdi uutta ihmistä", desc: "Juttele lyhyesti henkilön kanssa, jonka kanssa et ole aiemmin jutellut." },
+      { day: 24, emoji: "🥂", type: "task",   points: 10, title: "Joulun glögihetki",     desc: "Järjestä pieni glögi-/teehetki (alkoholittomasti) toimistolla." },
+    ];
+
+    // ------- Tila localStoragessa -------
+    const LS_KEY = "skanska_advent_progress_v1";
+    const LS_NAME_KEY = "skanska_advent_username";
+    function loadState() { const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : { completed: {}, points: 0 }; }
+    function saveState(s) { localStorage.setItem(LS_KEY, JSON.stringify(s)); }
+    function getUsername() { return localStorage.getItem(LS_NAME_KEY) || ""; }
+    function setUsername(n) { localStorage.setItem(LS_NAME_KEY, n); }
+
+    // ------- UI elementit -------
+    const calendarEl = document.getElementById("calendar");
+    const todayTextEl = document.getElementById("todayText");
+    const displayNameEl = document.getElementById("displayName");
+    const totalPointsEl = document.getElementById("totalPoints");
+    const usernameInput = document.getElementById("username");
+    const saveNameBtn = document.getElementById("saveNameBtn");
+    const devModeToggle = document.getElementById("devModeToggle");
+    const exportCsvBtn = document.getElementById("exportCsvBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const devControls = document.getElementById("devControls");
+
+    const modal = document.getElementById("challengeModal");
+    const modalBackdrop = document.getElementById("modalBackdrop");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalBody = document.getElementById("modalBody");
+    const closeModalBtn = document.getElementById("closeModalBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const markDoneBtn = document.getElementById("markDoneBtn");
+
+    // ------- Tila muuttujat -------
+    let state = loadState();
+    let devMode = false;
+    let currentDay = null;
+
+    // ------- Päivälogiikka -------
+    function getToday() { return new Date(); }
+    function isDoorOpen(day, dev=false) {
+      if (dev) return true;
+      const now = getToday();
+      const isDecember = now.getMonth() === 11; // 0=Jan... 11=Dec
+      const todayDay = now.getDate();
+      return (isDecember && day <= todayDay);
+    }
+
+    // ------- Kehittäjätilan näkyvyyden hallinta -------
+    const DEV_NAME = "adminjuutilairi";
+    function updateDevControlsVisibility() {
+      const name = (getUsername() || "").trim().toLowerCase();
+      const allowed = name === DEV_NAME.toLowerCase();
+      devControls.classList.toggle("hidden", !allowed);
+      // Jos ei sallittu, varmuuden vuoksi kytke devMode pois päältä
+      if (!allowed && devMode) {
+        devMode = false;
+        if (devModeToggle) devModeToggle.checked = false;
+        renderCalendar();
+      }
+    }
+
+    // Pikanäppäin Ctrl+Alt+D dev-tilan toggleen (vain sallitulle nimelle)
+    document.addEventListener("keydown", (e) => {
+      const name = (getUsername() || "").trim().toLowerCase();
+      const allowed = name === DEV_NAME.toLowerCase();
+      if (!allowed) return;
+      if (e.ctrlKey && e.altKey && e.key.toLowerCase() === "d") {
+        devMode = !devMode;
+        if (devModeToggle) devModeToggle.checked = devMode;
+        renderCalendar();
+        console.log(`Kehittäjätila: ${devMode ? "PÄÄLLÄ" : "POIS"}`);
+      }
+    });
+
+    // ------- Renderöinti -------
+    function renderHeader() {
+      const fmt = new Intl.DateTimeFormat("fi-FI", { dateStyle: "full", timeStyle: "short" });
+      todayTextEl.textContent = `Tänään on ${fmt.format(getToday())}`;
+      const name = getUsername();
+      displayNameEl.textContent = name || "—";
+      usernameInput.value = name;
+      totalPointsEl.textContent = state.points || 0;
+      updateDevControlsVisibility();
+    }
+
+    function renderCalendar() {
+      calendarEl.innerHTML = "";
+      CHALLENGES.forEach(ch => {
+        const open = isDoorOpen(ch.day, devMode);
+        const isDone = !!state.completed[ch.day];
+
+        const btn = document.createElement("button");
+        btn.className = "door" + (open ? "" : " locked") + (isDone ? " completed" : "");
+        btn.setAttribute("aria-label", `Luukku ${ch.day}: ${ch.title}`);
+        btn.disabled = !open;
+
+        const emoji = document.createElement("div");
+        emoji.className = "emoji";
+        emoji.textContent = ch.emoji;
+
+        const day = document.createElement("div");
+        day.className = "day";
+        day.textContent = ch.day;
+
+        const status = document.createElement("div");
+        status.className = "status";
+        status.textContent = isDone ? "Suoritettu ✔︎" : (open ? ch.title : "Avautuu oikeana päivänä");
+
+        btn.appendChild(emoji);
+        btn.appendChild(day);
+        btn.appendChild(status);
+
+        btn.addEventListener("click", () => openChallenge(ch.day));
+        calendarEl.appendChild(btn);
+      });
+    }
+
+    // ------- Modal & haasteen logiikka -------
+    function openChallenge(day) {
+      currentDay = day;
+      const ch = CHALLENGES.find(c => c.day === day);
+      if (!ch) return;
+
+      modalTitle.textContent = `Luukku ${day} – ${ch.title}`;
+      modalBody.innerHTML = "";
+
+      const desc = document.createElement("p");
+      desc.textContent = ch.desc || "";
+      modalBody.appendChild(desc);
+
+      if (ch.type === "quiz" && ch.quiz) {
+        const q = document.createElement("p");
+        q.innerHTML = `<strong>Kysymys:</strong> ${ch.quiz.question}`;
+        modalBody.appendChild(q);
+
+        const opts = document.createElement("div");
+        opts.className = "quiz-options";
+        ch.quiz.options.forEach((opt, idx) => {
+          const label = document.createElement("label");
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = "quizOption";
+          radio.value = String(idx);
+          label.appendChild(radio);
+          label.appendChild(document.createTextNode(opt));
+          opts.appendChild(label);
+        });
+        modalBody.appendChild(opts);
+
+        const feedback = document.createElement("div");
+        feedback.id = "feedback";
+        feedback.className = "small";
+        modalBody.appendChild(feedback);
+
+        markDoneBtn.onclick = () => {
+          const sel = modalBody.querySelector("input[name='quizOption']:checked");
+          if (!sel) { feedback.textContent = "Valitse jokin vaihtoehto ensin."; return; }
+          const idx = Number(sel.value);
+          if (idx === ch.quiz.correctIndex) { completeDay(ch.points); }
+          else { feedback.textContent = "Väärä vastaus – yritä uudelleen!"; }
+        };
+      } else if (ch.type === "anagram" && ch.anagram) {
+        const q = document.createElement("p");
+        q.innerHTML = `<strong>Anagrammi:</strong> ${ch.anagram.scrambled}`;
+        modalBody.appendChild(q);
+
+        const input = document.createElement("input");
+        input.className = "input-text";
+        input.placeholder = "Ratkaise sana";
+        modalBody.appendChild(input);
+
+        const feedback = document.createElement("div");
+        feedback.id = "feedback";
+        feedback.className = "small";
+        modalBody.appendChild(feedback);
+
+        markDoneBtn.onclick = () => {
+          const val = (input.value || "").trim().toUpperCase();
+          if (!val) { feedback.textContent = "Kirjoita ratkaisu ensin."; return; }
+          if (val === ch.anagram.solution.toUpperCase()) { completeDay(ch.points); }
+          else { feedback.textContent = "Vielä ei osunut – yritä uudestaan."; }
+        };
+      } else if (ch.type === "riddle" && ch.riddle) {
+        const q = document.createElement("p");
+        q.innerHTML = `<strong>Arvoitus:</strong> ${ch.riddle.question}`;
+        modalBody.appendChild(q);
+
+        const input = document.createElement("input");
+        input.className = "input-text";
+        input.placeholder = "Kirjoita vastauksesi";
+        modalBody.appendChild(input);
+
+        const feedback = document.createElement("div");
+        feedback.id = "feedback";
+        feedback.className = "small";
+        modalBody.appendChild(feedback);
+
+        markDoneBtn.onclick = () => {
+          const val = (input.value || "").trim().toUpperCase();
+          if (!val) { feedback.textContent = "Kirjoita vastaus ensin."; return; }
+          if (val === ch.riddle.answer.toUpperCase()) { completeDay(ch.points); }
+          else { feedback.textContent = "Ei ihan – kokeile uudelleen."; }
+        };
+      } else if (ch.type === "poll" && ch.poll) {
+        const q = document.createElement("p");
+        q.innerHTML = `<strong>Kysely:</strong> ${ch.poll.question}`;
+        modalBody.appendChild(q);
+
+        const opts = document.createElement("div");
+        opts.className = "quiz-options";
+        ch.poll.options.forEach((opt, idx) => {
+          const label = document.createElement("label");
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = "pollOption";
+          radio.value = String(idx);
+          label.appendChild(radio);
+          label.appendChild(document.createTextNode(opt));
+          opts.appendChild(label);
+        });
+        modalBody.appendChild(opts);
+
+        const feedback = document.createElement("div");
+        feedback.id = "feedback";
+        feedback.className = "small";
+        modalBody.appendChild(feedback);
+
+        markDoneBtn.onclick = () => {
+          const sel = modalBody.querySelector("input[name='pollOption']:checked");
+          if (!sel) { feedback.textContent = "Valitse jokin vaihtoehto."; return; }
+          completeDay(ch.points);
+        };
+      } else {
+        const info = document.createElement("p");
+        info.className = "small";
+        info.textContent = "Tee haaste toimistolla ja klikkaa \"Merkitse suoritetuksi\".";
+        modalBody.appendChild(info);
+        markDoneBtn.onclick = () => completeDay(ch.points);
+      }
+
+      openModal();
+    }
+
+    function openModal() { modalBackdrop.hidden = false; modal.showModal(); }
+    function closeModal() { modal.close(); modalBackdrop.hidden = true; }
+
+    function completeDay(points) {
+      if (!currentDay) return;
+      if (state.completed[currentDay]) { alert("Tämä haaste on jo suoritettu."); return; }
+      state.completed[currentDay] = true;
+      state.points = (state.points || 0) + Number(points || 0);
+      saveState(state);
+      renderHeader();
+      renderCalendar();
+      closeModal();
+      alert(`Suoritettu! Sait ${points} pistettä.`);
+    }
+
+    function exportCsv() {
+      const rows = [["day","title","completed","points" ]];
+      CHALLENGES.forEach(ch => {
+        const done = !!state.completed[ch.day];
+        const pts = done ? ch.points : 0;
+        rows.push([ch.day, ch.title, done, pts]);
+      });
+      const csv = rows.map(r => r.join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "skanska-joulukalenteri-pisteet.csv";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function resetProgress() {
+      if (!confirm("Nollataanko edistyminen ja pisteet?")) return;
+      state = { completed: {}, points: 0 };
+      saveState(state);
+      renderHeader();
+      renderCalendar();
+    }
+
+    document.getElementById("saveNameBtn").addEventListener("click", () => {
+      const name = (document.getElementById("username").value || "").trim();
+      setUsername(name);
+      renderHeader();       // Päivittää dev-kontin näkyvyyden heti
+    });
+
+    if (devModeToggle) {
+      document.getElementById("devModeToggle").addEventListener("change", (e) => {
+        devMode = !!e.target.checked;
+        renderCalendar();
+      });
+    }
+    document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+    document.getElementById("resetBtn").addEventListener("click", resetProgress);
+    document.getElementById("closeModalBtn").addEventListener("click", closeModal);
+    document.getElementById("cancelBtn").addEventListener("click", closeModal);
+
+    // Alustus
+    renderHeader();        // Päiväteksti + nimi + dev näkyvyys    renderHeader();        // Päiväteksti + nimi + dev näkyvyys
+    renderCalendar();      // Luukut
+  </script>
+</body>
+</html>
